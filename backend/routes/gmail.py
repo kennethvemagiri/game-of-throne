@@ -83,24 +83,29 @@ async def run_fetch_and_classify() -> dict:
 
 @router.post("/api/gmail/fetch")
 async def gmail_fetch(request: Request):
-    cron_secret = os.getenv("CRON_SECRET")
-    on_vercel = os.getenv("VERCEL") == "1"
+    try:
+        cron_secret = os.getenv("CRON_SECRET")
+        on_vercel = os.getenv("VERCEL") == "1"
 
-    if on_vercel and not cron_secret:
-        raise HTTPException(status_code=500, detail="CRON_SECRET not configured")
+        if on_vercel and not cron_secret:
+            raise HTTPException(status_code=500, detail="CRON_SECRET not configured")
 
-    if cron_secret:
-        auth = request.headers.get("authorization", "")
-        if auth != f"Bearer {cron_secret}":
-            raise HTTPException(status_code=401, detail="Unauthorized")
+        if cron_secret:
+            auth = request.headers.get("authorization", "")
+            if auth != f"Bearer {cron_secret}":
+                raise HTTPException(status_code=401, detail="Unauthorized")
+            if not gmail_service.is_authenticated():
+                return {"skipped": True, "reason": "gmail_not_authenticated"}
+            return await run_fetch_and_classify()
+
         if not gmail_service.is_authenticated():
-            return {"skipped": True, "reason": "gmail_not_authenticated"}
+            raise HTTPException(status_code=401, detail="Gmail not authenticated")
+
         return await run_fetch_and_classify()
-
-    if not gmail_service.is_authenticated():
-        raise HTTPException(status_code=401, detail="Gmail not authenticated")
-
-    return await run_fetch_and_classify()
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return {"error": str(e)}
 
 
 @router.post("/api/gmail/webhook")
