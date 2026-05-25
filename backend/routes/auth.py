@@ -41,13 +41,14 @@ def gmail_auth_start():
 
 
 @router.get("/auth/google/callback")
-def gmail_auth_callback(request: Request):
-    code = request.query_params.get("code", "")
+async def gmail_auth_callback(request: Request):
     flow = _build_flow()
 
     if os.getenv("VERCEL") != "1":
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-    flow.fetch_token(code=code)
+
+    authorization_response = str(request.url)
+    flow.fetch_token(authorization_response=authorization_response)
 
     save_credentials_from_flow(flow.credentials)
     return RedirectResponse(url="/?gmail=connected")
