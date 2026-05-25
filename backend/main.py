@@ -84,7 +84,15 @@ def create_app() -> FastAPI:
     app.include_router(suggested_jobs.router)
     app.include_router(cron.router)
     app.include_router(auth.router)
+    print("[startup] AUTH ROUTES LOADED")
     app.include_router(gmail.router)
+
+    print("[startup] ALL REGISTERED ROUTES:")
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            print(f"  {','.join(route.methods):10s} {route.path}")
+        else:
+            print(f"  {'MOUNT':10s} {route.path}")
 
     if FRONTEND_DIR.exists():
         app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
