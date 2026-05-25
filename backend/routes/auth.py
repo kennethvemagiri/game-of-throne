@@ -51,4 +51,4 @@ async def gmail_auth_callback(request: Request):
     flow.fetch_token(authorization_response=authorization_response)
 
     save_credentials_from_flow(flow.credentials)
-    return RedirectResponse(url="/?gmail=connected")
+    return {"success": True, "message": "gmail connected"}
