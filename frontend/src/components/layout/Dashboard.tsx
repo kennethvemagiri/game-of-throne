@@ -102,7 +102,7 @@ export function Dashboard() {
               )}
             </>
           ) : (
-            <a href="/api/auth/gmail" className="btn btn--sync">Connect Gmail</a>
+            <a href="/auth/google/login" className="btn btn--sync">Connect Gmail</a>
           )}
         </div>
         <span className={`header__badge${pending === 0 ? ' is-empty' : ''}`}>

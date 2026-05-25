@@ -39,7 +39,7 @@ Follow these steps to connect your Gmail inbox to Game of Throne.
 4. Name: `Game of Throne Web`
 5. Under **Authorized redirect URIs**, add:
    ```
-   http://localhost:3001/api/auth/gmail/callback
+   http://localhost:3001/auth/google/callback
    ```
 6. Click **Create**
 7. Copy the **Client ID** and **Client Secret**
@@ -51,7 +51,7 @@ Create a `.env` file in your project root (copy from `.env.example`):
 ```
 GMAIL_CLIENT_ID=your_client_id_here
 GMAIL_CLIENT_SECRET=your_client_secret_here
-GMAIL_REDIRECT_URI=http://localhost:3001/api/auth/gmail/callback
+GMAIL_REDIRECT_URI=http://localhost:3001/auth/google/callback
 ```
 
 ## 6. Connect Your Gmail
@@ -81,7 +81,7 @@ For Vercel, update the redirect URI:
 
 1. In Google Cloud Console, add your production callback URL to **Authorized redirect URIs**:
    ```
-   https://your-domain.vercel.app/api/auth/gmail/callback
+   https://your-domain.vercel.app/auth/google/callback
    ```
 2. Set the environment variables in Vercel's dashboard:
    - `GMAIL_CLIENT_ID`

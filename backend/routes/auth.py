@@ -29,7 +29,7 @@ def _build_flow(state: str | None = None) -> Flow:
     return flow
 
 
-@router.get("/api/auth/gmail")
+@router.get("/auth/google/login")
 def gmail_auth_start():
     flow = _build_flow()
     authorization_url, state = flow.authorization_url(
@@ -40,7 +40,7 @@ def gmail_auth_start():
     return RedirectResponse(url=authorization_url)
 
 
-@router.get("/api/auth/gmail/callback")
+@router.get("/auth/google/callback")
 def gmail_auth_callback(request: Request):
     code = request.query_params.get("code", "")
     flow = _build_flow()
