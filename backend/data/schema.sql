@@ -42,6 +42,23 @@ CREATE TABLE sync_metadata (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Gmail OAuth token storage (replaces token.json)
+CREATE TABLE gmail_tokens (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    token_uri TEXT NOT NULL DEFAULT 'https://oauth2.googleapis.com/token',
+    client_id TEXT NOT NULL,
+    client_secret TEXT NOT NULL,
+    scopes TEXT[] NOT NULL,
+    expiry TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Block anonymous/public access — tokens are only reachable via backend
+ALTER TABLE gmail_tokens ENABLE ROW LEVEL SECURITY;
+
 -- Indexes for fast lookups
 CREATE INDEX idx_applications_status ON applications(status);
 CREATE INDEX idx_applications_email_id ON applications(email_id);

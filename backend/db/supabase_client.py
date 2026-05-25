@@ -54,3 +54,29 @@ def set_sync_value(key: str, value: str) -> None:
         ).execute()
     except Exception:
         logger.exception(f"[supabase] Failed to write sync_metadata key={key}")
+
+
+def get_gmail_token(token_id: str = "default") -> dict | None:
+    """Read a Gmail OAuth token row from the gmail_tokens table."""
+    try:
+        result = (
+            get_client()
+            .table("gmail_tokens")
+            .select("*")
+            .eq("id", token_id)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+    except Exception:
+        logger.exception("[supabase] Failed to read gmail_tokens")
+        return None
+
+
+def upsert_gmail_token(row: dict) -> None:
+    """Write a Gmail OAuth token row (upsert by id)."""
+    try:
+        get_client().table("gmail_tokens").upsert(
+            row, on_conflict="id"
+        ).execute()
+    except Exception:
+        logger.exception("[supabase] Failed to upsert gmail_tokens")

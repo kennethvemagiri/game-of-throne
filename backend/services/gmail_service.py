@@ -15,31 +15,24 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from backend.db import store
-from backend.db.supabase_client import get_sync_value, set_sync_value
+from backend.db.supabase_client import (
+    get_sync_value,
+    set_sync_value,
+    get_gmail_token,
+    upsert_gmail_token,
+)
 
 logger = logging.getLogger(__name__)
 
 _LOCAL_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-_TMP_DATA_DIR = Path("/tmp/got_data")
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 MAX_RESULTS = 100
 MAX_RETRIES = 3
 
 
-def _data_dir() -> Path:
-    if os.environ.get("VERCEL") == "1":
-        _TMP_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        return _TMP_DATA_DIR
-    return _LOCAL_DATA_DIR
-
-
-def _token_path() -> Path:
-    return _data_dir() / "token.json"
-
-
 def _last_fetch_path() -> Path:
-    return _data_dir() / "last_fetch.json"
+    return _LOCAL_DATA_DIR / "last_fetch.json"
 
 
 class _HTMLStripper(HTMLParser):
@@ -60,13 +53,78 @@ def _strip_html(html: str) -> str:
     return stripper.get_text()
 
 
-def get_credentials() -> Optional[Credentials]:
-    if not _token_path().exists():
+def _creds_to_row(creds: Credentials) -> dict:
+    """Serialize a google Credentials object into a dict matching the gmail_tokens table."""
+    return {
+        "id": "default",
+        "access_token": creds.token,
+        "refresh_token": creds.refresh_token,
+        "token_uri": creds.token_uri,
+        "client_id": creds.client_id,
+        "client_secret": creds.client_secret,
+        "scopes": list(creds.scopes) if creds.scopes else SCOPES,
+        "expiry": creds.expiry.isoformat() if creds.expiry else None,
+    }
+
+
+def _row_to_creds(row: dict) -> Credentials:
+    """Reconstruct a google Credentials object from a gmail_tokens DB row."""
+    expiry = None
+    if row.get("expiry"):
+        expiry = datetime.fromisoformat(row["expiry"].replace("Z", "+00:00"))
+
+    return Credentials(
+        token=row["access_token"],
+        refresh_token=row["refresh_token"],
+        token_uri=row["token_uri"],
+        client_id=row["client_id"],
+        client_secret=row["client_secret"],
+        scopes=row["scopes"],
+        expiry=expiry,
+    )
+
+
+def _save_credentials(creds: Credentials) -> None:
+    """Persist credentials to Supabase gmail_tokens table."""
+    upsert_gmail_token(_creds_to_row(creds))
+
+
+def save_credentials_from_flow(creds: Credentials) -> None:
+    _save_credentials(creds)
+
+
+def _migrate_local_token() -> Optional[Credentials]:
+    """One-time migration: if a local token.json exists, load it, push to
+    Supabase, delete the local file, and return the credentials."""
+    local_path = _LOCAL_DATA_DIR / "token.json"
+    if not local_path.exists():
         return None
+
     try:
-        creds = Credentials.from_authorized_user_file(str(_token_path()), SCOPES)
+        creds = Credentials.from_authorized_user_file(str(local_path), SCOPES)
+        _save_credentials(creds)
+        local_path.unlink(missing_ok=True)
+        logger.info("[gmail] Migrated local token.json to Supabase and deleted local file")
+        return creds
     except Exception:
-        logger.warning("[gmail] Failed to load token.json")
+        logger.warning("[gmail] Failed to migrate local token.json")
+        return None
+
+
+def get_credentials() -> Optional[Credentials]:
+    row = get_gmail_token()
+
+    if not row:
+        migrated = _migrate_local_token()
+        if migrated:
+            row = get_gmail_token()
+        if not row:
+            return None
+
+    try:
+        creds = _row_to_creds(row)
+    except Exception:
+        logger.warning("[gmail] Failed to deserialize token from DB")
         return None
 
     if creds.valid:
@@ -82,16 +140,6 @@ def get_credentials() -> Optional[Credentials]:
             return None
 
     return None
-
-
-def _save_credentials(creds: Credentials) -> None:
-    path = _token_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(creds.to_json(), encoding="utf-8")
-
-
-def save_credentials_from_flow(creds: Credentials) -> None:
-    _save_credentials(creds)
 
 
 def is_authenticated() -> bool:
