@@ -1,3 +1,5 @@
+import base64
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -99,6 +101,36 @@ async def gmail_fetch(request: Request):
         raise HTTPException(status_code=401, detail="Gmail not authenticated")
 
     return await run_fetch_and_classify()
+
+
+@router.post("/api/gmail/webhook")
+async def gmail_webhook(request: Request):
+    """Receives push notifications from Gmail via Google Cloud Pub/Sub."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON") from None
+
+    message = body.get("message", {})
+    if not message:
+        return {"status": "no_message"}
+
+    try:
+        data = base64.b64decode(message.get("data", "")).decode("utf-8")
+        payload = json.loads(data)
+        history_id = payload.get("historyId")
+    except Exception:
+        logger.warning("[gmail-webhook] Failed to decode Pub/Sub message")
+        return {"status": "decode_error"}
+
+    logger.info(f"[gmail-webhook] Push received, historyId={history_id}")
+
+    if not gmail_service.is_authenticated():
+        logger.warning("[gmail-webhook] Gmail not authenticated, skipping")
+        return {"status": "not_authenticated"}
+
+    result = await run_fetch_and_classify()
+    return {"status": "processed", **result}
 
 
 @router.get("/api/gmail/status")

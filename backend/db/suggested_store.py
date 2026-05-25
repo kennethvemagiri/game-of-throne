@@ -1,99 +1,122 @@
-import json
-import os
-import shutil
-import uuid
+import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
-_BUNDLED_PATH = Path(__file__).resolve().parent.parent / "data" / "suggested_jobs.json"
-_TMP_PATH = Path("/tmp/got_data/suggested_jobs.json")
+from backend.db.supabase_client import get_client
+
+logger = logging.getLogger(__name__)
+
+_DB_COLUMNS = {
+    "id", "source", "company", "role", "url", "snippet",
+    "status", "suggested_at", "viewed_at", "created_at", "updated_at",
+}
+
+_CAMEL_TO_SNAKE = {
+    "suggestedAt": "suggested_at",
+    "viewedAt": "viewed_at",
+    "createdAt": "created_at",
+    "updatedAt": "updated_at",
+}
 
 
-def _data_path() -> Path:
-    if os.getenv("VERCEL") == "1":
-        if not _TMP_PATH.exists():
-            _TMP_PATH.parent.mkdir(parents=True, exist_ok=True)
-            if _BUNDLED_PATH.exists():
-                shutil.copy2(_BUNDLED_PATH, _TMP_PATH)
-            else:
-                _TMP_PATH.write_text("[]", encoding="utf-8")
-        return _TMP_PATH
-    return _BUNDLED_PATH
+def _to_db_row(data: dict) -> dict:
+    row: dict = {}
+    for key, value in data.items():
+        db_key = _CAMEL_TO_SNAKE.get(key, key)
+        if db_key in _DB_COLUMNS:
+            row[db_key] = value
+    return row
 
 
-def _read_all() -> list[dict]:
-    path = _data_path()
-    if not path.exists():
-        return []
-    with path.open(encoding="utf-8") as f:
-        data = json.load(f)
-    return data if isinstance(data, list) else data.get("suggestedJobs", [])
+def _to_job_dict(row: dict) -> dict:
+    job = dict(row)
+    job.setdefault("suggestedAt", job.get("suggested_at"))
+    job.setdefault("viewedAt", job.get("viewed_at"))
+    job.setdefault("createdAt", job.get("created_at"))
+    job.setdefault("updatedAt", job.get("updated_at"))
+    return job
 
 
-def _write_all(jobs: list[dict]) -> None:
-    path = _data_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(jobs, f, indent=2)
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def get_all(*, status: Optional[str] = None) -> list[dict]:
-    jobs = _read_all()
-    if status:
-        jobs = [j for j in jobs if j.get("status") == status]
-
-    def sort_key(job: dict):
-        return job.get("suggestedAt") or job.get("suggested_at") or ""
-
-    return sorted(jobs, key=sort_key, reverse=True)
+    try:
+        query = get_client().table("suggested_jobs").select("*")
+        if status:
+            query = query.eq("status", status)
+        result = query.order("suggested_at", desc=True).execute()
+        return [_to_job_dict(row) for row in result.data]
+    except Exception:
+        logger.exception("[suggested_store] Failed to fetch suggested jobs")
+        raise
 
 
 def get_by_id(job_id: str) -> Optional[dict]:
-    return next((j for j in _read_all() if j.get("id") == job_id), None)
+    try:
+        result = get_client().table("suggested_jobs").select("*").eq("id", job_id).execute()
+        return _to_job_dict(result.data[0]) if result.data else None
+    except Exception:
+        logger.exception(f"[suggested_store] Failed to fetch job {job_id}")
+        raise
 
 
 def upsert(job: dict) -> dict:
-    jobs = _read_all()
-    now = datetime.now(timezone.utc).isoformat()
-    index = next((i for i, j in enumerate(jobs) if j.get("id") == job.get("id")), -1)
+    try:
+        row = _to_db_row(job)
+        now = _now_iso()
+        row["updated_at"] = now
+        row.setdefault("suggested_at", now)
+        row.setdefault("status", "pending")
 
-    if index >= 0:
-        jobs[index] = {**jobs[index], **job, "updatedAt": now}
-        _write_all(jobs)
-        return jobs[index]
+        if job.get("id"):
+            existing = get_by_id(job["id"])
+            if existing:
+                result = (
+                    get_client()
+                    .table("suggested_jobs")
+                    .update(row)
+                    .eq("id", job["id"])
+                    .execute()
+                )
+                return _to_job_dict(result.data[0])
 
-    new_job = {
-        "id": job.get("id") or f"sj-{uuid.uuid4().hex[:8]}",
-        "status": "pending",
-        "suggestedAt": now,
-        **job,
-        "updatedAt": now,
-    }
-    jobs.append(new_job)
-    _write_all(jobs)
-    return new_job
+        row.pop("id", None)
+        result = get_client().table("suggested_jobs").insert(row).execute()
+        return _to_job_dict(result.data[0])
+    except Exception:
+        logger.exception("[suggested_store] Failed to upsert job")
+        raise
 
 
 def reject(job_id: str) -> Optional[dict]:
-    jobs = _read_all()
-    index = next((i for i, j in enumerate(jobs) if j.get("id") == job_id), -1)
-    if index < 0:
-        return None
-
-    now = datetime.now(timezone.utc).isoformat()
-    jobs[index] = {**jobs[index], "status": "rejected", "updatedAt": now}
-    _write_all(jobs)
-    return jobs[index]
+    try:
+        now = _now_iso()
+        result = (
+            get_client()
+            .table("suggested_jobs")
+            .update({"status": "rejected", "updated_at": now})
+            .eq("id", job_id)
+            .execute()
+        )
+        return _to_job_dict(result.data[0]) if result.data else None
+    except Exception:
+        logger.exception(f"[suggested_store] Failed to reject job {job_id}")
+        raise
 
 
 def mark_viewed(job_id: str) -> Optional[dict]:
-    jobs = _read_all()
-    index = next((i for i, j in enumerate(jobs) if j.get("id") == job_id), -1)
-    if index < 0:
-        return None
-
-    now = datetime.now(timezone.utc).isoformat()
-    jobs[index] = {**jobs[index], "status": "viewed", "viewedAt": now, "updatedAt": now}
-    _write_all(jobs)
-    return jobs[index]
+    try:
+        now = _now_iso()
+        result = (
+            get_client()
+            .table("suggested_jobs")
+            .update({"status": "viewed", "viewed_at": now, "updated_at": now})
+            .eq("id", job_id)
+            .execute()
+        )
+        return _to_job_dict(result.data[0]) if result.data else None
+    except Exception:
+        logger.exception(f"[suggested_store] Failed to mark job {job_id} viewed")
+        raise

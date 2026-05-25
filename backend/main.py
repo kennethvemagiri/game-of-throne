@@ -33,6 +33,14 @@ def _gmail_fetch_sync() -> None:
         logging.getLogger(__name__).exception("[scheduler] Gmail fetch cycle failed")
 
 
+def _renew_watch_sync() -> None:
+    try:
+        gmail_service.start_watch()
+        logging.info("[scheduler] Gmail Pub/Sub watch renewed")
+    except Exception:
+        logging.getLogger(__name__).exception("[scheduler] Gmail watch renewal failed")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     on_vercel = os.getenv("VERCEL") == "1"
@@ -48,6 +56,12 @@ async def lifespan(_app: FastAPI):
                 _gmail_fetch_sync, "interval", minutes=15, id="gmail_fetch"
             )
             print("[server] Gmail fetch scheduled every 15 minutes")
+
+            if os.getenv("GOOGLE_CLOUD_PROJECT_ID"):
+                scheduler.add_job(
+                    _renew_watch_sync, "interval", days=6, id="gmail_watch"
+                )
+                print("[server] Gmail Pub/Sub watch renewal scheduled every 6 days")
 
         if scheduler.get_jobs():
             scheduler.start()

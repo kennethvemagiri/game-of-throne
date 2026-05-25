@@ -1,13 +1,10 @@
-import json
-import os
-import shutil
-import uuid
+import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
-_BUNDLED_PATH = Path(__file__).resolve().parent.parent / "data" / "applications.json"
-_TMP_PATH = Path("/tmp/got_data/applications.json")
+from backend.db.supabase_client import get_client
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_REVIEW_STATUSES = {
     "interview",
@@ -18,133 +15,177 @@ ALLOWED_REVIEW_STATUSES = {
     "applied",
 }
 
+_DB_COLUMNS = {
+    "id", "email_id", "company", "role", "status", "suggested_status",
+    "confidence", "subject", "snippet", "received_at", "classified_at",
+    "reviewed", "reviewed_at", "created_at", "updated_at",
+}
 
-def _data_path() -> Path:
-    """Return a writable data path. On Vercel the bundled path is read-only,
-    so we copy it to /tmp on first access and use that copy going forward."""
-    if os.getenv("VERCEL") == "1":
-        if not _TMP_PATH.exists():
-            _TMP_PATH.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(_BUNDLED_PATH, _TMP_PATH)
-        return _TMP_PATH
-    return _BUNDLED_PATH
-
-
-def _read_all() -> list[dict]:
-    path = _data_path()
-    with path.open(encoding="utf-8") as f:
-        data = json.load(f)
-    return data if isinstance(data, list) else data.get("applications", [])
+_CAMEL_TO_SNAKE = {
+    "emailId": "email_id",
+    "suggestedStatus": "suggested_status",
+    "receivedAt": "received_at",
+    "classifiedAt": "classified_at",
+    "createdAt": "created_at",
+    "updatedAt": "updated_at",
+    "reviewedAt": "reviewed_at",
+}
 
 
-def _write_all(applications: list[dict]) -> None:
-    path = _data_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(applications, f, indent=2)
+def _to_db_row(data: dict) -> dict:
+    """Convert an application dict (camelCase) to a flat DB row (snake_case)."""
+    row: dict = {}
+    review = data.get("review")
+
+    for key, value in data.items():
+        if key == "review":
+            continue
+        db_key = _CAMEL_TO_SNAKE.get(key, key)
+        if db_key in _DB_COLUMNS:
+            row[db_key] = value
+
+    if isinstance(review, dict):
+        if "reviewed" in review:
+            row["reviewed"] = review["reviewed"]
+        rev_at = review.get("reviewedAt") or review.get("reviewed_at")
+        if rev_at is not None:
+            row["reviewed_at"] = rev_at
+
+    return row
+
+
+def _to_app_dict(row: dict) -> dict:
+    """Convert a DB row to the dict shape the rest of the app expects."""
+    app = dict(row)
+
+    app.setdefault("emailId", app.get("email_id"))
+    app.setdefault("suggestedStatus", app.get("suggested_status"))
+    app.setdefault("receivedAt", app.get("received_at"))
+    app.setdefault("classifiedAt", app.get("classified_at"))
+    app.setdefault("createdAt", app.get("created_at"))
+    app.setdefault("updatedAt", app.get("updated_at"))
+
+    app["review"] = {
+        "reviewed": app.get("reviewed", False),
+        "reviewed_at": app.get("reviewed_at"),
+        "reviewedAt": app.get("reviewed_at"),
+    }
+
+    return app
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def get_all(*, status: Optional[str] = None, needs_review: bool = False) -> list[dict]:
-    apps = [a for a in _read_all() if a.get("status") != "archived"]
-    if status:
-        apps = [a for a in apps if a.get("status") == status]
-    if needs_review:
-        apps = [
-            a
-            for a in apps
-            if a.get("status") == "needs_review" and (a.get("review") or {}).get("reviewed") is not True
-        ]
+    try:
+        query = get_client().table("applications").select("*").neq("status", "archived")
 
-    def sort_key(app: dict):
-        return app.get("received_at") or app.get("receivedAt") or app.get("classified_at") or ""
+        if status:
+            query = query.eq("status", status)
+        if needs_review:
+            query = query.eq("status", "needs_review").eq("reviewed", False)
 
-    return sorted(apps, key=sort_key, reverse=True)
+        result = query.order("received_at", desc=True).execute()
+        return [_to_app_dict(row) for row in result.data]
+    except Exception:
+        logger.exception("[store] Failed to fetch applications")
+        raise
 
 
 def get_by_id(app_id: str) -> Optional[dict]:
-    return next((a for a in _read_all() if a.get("id") == app_id), None)
+    try:
+        result = get_client().table("applications").select("*").eq("id", app_id).execute()
+        return _to_app_dict(result.data[0]) if result.data else None
+    except Exception:
+        logger.exception(f"[store] Failed to fetch application {app_id}")
+        raise
 
 
 def upsert(application: dict) -> dict:
-    apps = _read_all()
-    now = datetime.now(timezone.utc).isoformat()
-    index = next(
-        (
-            i
-            for i, a in enumerate(apps)
-            if a.get("id") == application.get("id")
-            or a.get("email_id") == application.get("email_id")
-            or a.get("emailId") == application.get("emailId")
-        ),
-        -1,
-    )
+    try:
+        row = _to_db_row(application)
+        row["updated_at"] = _now_iso()
+        row.setdefault("created_at", _now_iso())
 
-    if index >= 0:
-        apps[index] = {**apps[index], **application, "updated_at": now, "updatedAt": now}
-        _write_all(apps)
-        return apps[index]
-
-    new_app = {
-        "id": str(uuid.uuid4()),
-        "review": {"reviewed": False, "reviewed_at": None, "reviewedAt": None},
-        "created_at": now,
-        "createdAt": now,
-        **application,
-        "updated_at": now,
-        "updatedAt": now,
-    }
-    apps.append(new_app)
-    _write_all(apps)
-    return new_app
+        result = (
+            get_client()
+            .table("applications")
+            .upsert(row, on_conflict="email_id")
+            .execute()
+        )
+        return _to_app_dict(result.data[0])
+    except Exception:
+        logger.exception("[store] Failed to upsert application")
+        raise
 
 
 def assign_review(app_id: str, status: str) -> Optional[dict]:
     if status not in ALLOWED_REVIEW_STATUSES:
         raise ValueError("Invalid status")
 
-    apps = _read_all()
-    index = next((i for i, a in enumerate(apps) if a.get("id") == app_id), -1)
-    if index < 0:
-        return None
-
-    now = datetime.now(timezone.utc).isoformat()
-    apps[index] = {
-        **apps[index],
-        "status": status,
-        "review": {"reviewed": True, "reviewed_at": now, "reviewedAt": now},
-        "updated_at": now,
-        "updatedAt": now,
-    }
-    _write_all(apps)
-    return apps[index]
+    try:
+        now = _now_iso()
+        result = (
+            get_client()
+            .table("applications")
+            .update({
+                "status": status,
+                "reviewed": True,
+                "reviewed_at": now,
+                "updated_at": now,
+            })
+            .eq("id", app_id)
+            .execute()
+        )
+        return _to_app_dict(result.data[0]) if result.data else None
+    except Exception:
+        logger.exception(f"[store] Failed to assign review for {app_id}")
+        raise
 
 
 def archive(app_id: str) -> Optional[dict]:
-    apps = _read_all()
-    index = next((i for i, a in enumerate(apps) if a.get("id") == app_id), -1)
-    if index < 0:
-        return None
-
-    now = datetime.now(timezone.utc).isoformat()
-    apps[index] = {
-        **apps[index],
-        "status": "archived",
-        "updated_at": now,
-        "updatedAt": now,
-    }
-    _write_all(apps)
-    return apps[index]
+    try:
+        now = _now_iso()
+        result = (
+            get_client()
+            .table("applications")
+            .update({"status": "archived", "updated_at": now})
+            .eq("id", app_id)
+            .execute()
+        )
+        return _to_app_dict(result.data[0]) if result.data else None
+    except Exception:
+        logger.exception(f"[store] Failed to archive application {app_id}")
+        raise
 
 
 def get_stats() -> dict:
-    apps = [a for a in _read_all() if a.get("status") != "archived"]
+    try:
+        result = (
+            get_client()
+            .table("applications")
+            .select("status,reviewed")
+            .neq("status", "archived")
+            .execute()
+        )
+    except Exception:
+        logger.exception("[store] Failed to fetch stats")
+        raise
+
     counts: dict[str, int] = {}
-    for app in apps:
-        key = app.get("status", "unknown")
+    needs_review_count = 0
+
+    for row in result.data:
+        key = row.get("status", "unknown")
         counts[key] = counts.get(key, 0) + 1
-    needs_review = sum(
-        1
-        for a in apps
-        if a.get("status") == "needs_review" and (a.get("review") or {}).get("reviewed") is not True
-    )
-    return {"counts": counts, "needs_review": needs_review, "needsReview": needs_review, "total": len(apps)}
+        if key == "needs_review" and row.get("reviewed") is not True:
+            needs_review_count += 1
+
+    return {
+        "counts": counts,
+        "needs_review": needs_review_count,
+        "needsReview": needs_review_count,
+        "total": len(result.data),
+    }

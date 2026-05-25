@@ -15,6 +15,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from backend.db import store
+from backend.db.supabase_client import get_sync_value, set_sync_value
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,10 @@ def _build_service(creds: Credentials):
 
 
 def get_last_fetch() -> Optional[str]:
+    value = get_sync_value("last_fetch")
+    if value:
+        return value
+
     path = _last_fetch_path()
     if not path.exists():
         return None
@@ -113,12 +118,7 @@ def get_last_fetch() -> Optional[str]:
 
 
 def set_last_fetch(iso_timestamp: str) -> None:
-    path = _last_fetch_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"last_fetch": iso_timestamp}, indent=2),
-        encoding="utf-8",
-    )
+    set_sync_value("last_fetch", iso_timestamp)
 
 
 def _get_since_epoch() -> int:
@@ -220,6 +220,29 @@ def _list_messages_with_retry(service, query: str) -> list[str]:
             break
 
     return message_ids
+
+
+def start_watch(topic_name: str | None = None) -> dict:
+    """Register Gmail push notifications via Pub/Sub. Must renew every 7 days."""
+    if not topic_name:
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID")
+        if not project_id:
+            raise RuntimeError("GOOGLE_CLOUD_PROJECT_ID not set")
+        topic_name = f"projects/{project_id}/topics/gmail-notifications"
+
+    creds = get_credentials()
+    if not creds:
+        raise RuntimeError("Gmail not authenticated")
+
+    service = _build_service(creds)
+    result = service.users().watch(
+        userId="me",
+        body={"topicName": topic_name, "labelIds": ["INBOX"]},
+    ).execute()
+
+    logger.info(f"[gmail] Watch registered, historyId={result.get('historyId')}, "
+                f"expiration={result.get('expiration')}")
+    return result
 
 
 def fetch_new_emails() -> list[dict]:

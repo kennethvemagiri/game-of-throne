@@ -33,8 +33,10 @@ export interface SuggestedJob {
   status: string;
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
+  const res = await fetch(`${API_BASE}${url}`, options);
   if (!res.ok) {
     throw new Error(`Request failed: ${res.status}`);
   }
