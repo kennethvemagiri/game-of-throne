@@ -7,6 +7,7 @@ from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.db import store
@@ -77,6 +78,18 @@ def create_app() -> FastAPI:
         title="Game of Throne",
         description="Automated job pipeline dashboard",
         lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "https://game-of-throne-seven.vercel.app",
+            "https://game-of-throne-pmvxa56vy-kenneth-vemagiris-projects.vercel.app",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     app.include_router(health.router)
