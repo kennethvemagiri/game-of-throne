@@ -71,7 +71,9 @@ def _row_to_creds(row: dict) -> Credentials:
     """Reconstruct a google Credentials object from a gmail_tokens DB row."""
     expiry = None
     if row.get("expiry"):
-        expiry = datetime.fromisoformat(row["expiry"].replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(row["expiry"].replace("Z", "+00:00"))
+        # google-auth compares expiry against naive utcnow(), so strip tzinfo
+        expiry = dt.replace(tzinfo=None)
 
     return Credentials(
         token=row["access_token"],
