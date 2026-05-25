@@ -1,0 +1,114 @@
+[
+  {
+    "id": "1",
+    "emailId": "msg-001",
+    "company": "FanDuel",
+    "role": "QA Engineer",
+    "status": "archived",
+    "subject": "Interview invite \u2014 next stage",
+    "snippet": "We'd like to invite you for an interview and schedule a call to meet the team.",
+    "confidence": "high",
+    "receivedAt": "2026-05-22T14:00:00.000Z",
+    "classifiedAt": "2026-05-22T14:05:00.000Z",
+    "review": {
+      "reviewed": true,
+      "reviewedAt": null
+    },
+    "updated_at": "2026-05-25T10:14:29.513270+00:00",
+    "updatedAt": "2026-05-25T10:14:29.513270+00:00"
+  },
+  {
+    "id": "2",
+    "emailId": "msg-002",
+    "company": "Stripe",
+    "role": "Software Engineer",
+    "status": "archived",
+    "subject": "Coding challenge \u2014 complete within 48h",
+    "snippet": "Please complete this take-home technical test assessment.",
+    "confidence": "high",
+    "receivedAt": "2026-05-23T09:00:00.000Z",
+    "classifiedAt": "2026-05-23T09:02:00.000Z",
+    "review": {
+      "reviewed": true,
+      "reviewedAt": null
+    },
+    "updated_at": "2026-05-25T10:14:29.998308+00:00",
+    "updatedAt": "2026-05-25T10:14:29.998308+00:00"
+  },
+  {
+    "id": "3",
+    "emailId": "msg-003",
+    "company": "Acme Corp",
+    "role": null,
+    "status": "archived",
+    "suggestedStatus": "acknowledged",
+    "subject": "Thank you for applying",
+    "snippet": "We received your application and will be in touch.",
+    "confidence": "medium",
+    "receivedAt": "2026-05-24T08:00:00.000Z",
+    "classifiedAt": "2026-05-24T08:01:00.000Z",
+    "review": {
+      "reviewed": true,
+      "reviewed_at": "2026-05-24T09:43:42.576045+00:00",
+      "reviewedAt": "2026-05-24T09:43:42.576045+00:00"
+    },
+    "updated_at": "2026-05-25T10:14:25.421268+00:00",
+    "updatedAt": "2026-05-25T10:14:25.421268+00:00"
+  },
+  {
+    "id": "4",
+    "emailId": "msg-004",
+    "company": "Globex",
+    "role": "Product Manager",
+    "status": "archived",
+    "suggestedStatus": null,
+    "subject": "Following up on your application",
+    "snippet": "Wanted to share an update on your candidacy and next steps.",
+    "confidence": "low",
+    "receivedAt": "2026-05-24T10:30:00.000Z",
+    "classifiedAt": "2026-05-24T10:31:00.000Z",
+    "review": {
+      "reviewed": true,
+      "reviewed_at": "2026-05-24T09:43:43.722194+00:00",
+      "reviewedAt": "2026-05-24T09:43:43.722194+00:00"
+    },
+    "updated_at": "2026-05-25T10:14:24.422638+00:00",
+    "updatedAt": "2026-05-25T10:14:24.422638+00:00"
+  },
+  {
+    "id": "5",
+    "emailId": "msg-005",
+    "company": "Initech",
+    "role": null,
+    "status": "archived",
+    "subject": "Update on your application",
+    "snippet": "Unfortunately we will not be progressing with other candidates.",
+    "confidence": "high",
+    "receivedAt": "2026-05-20T16:00:00.000Z",
+    "classifiedAt": "2026-05-20T16:01:00.000Z",
+    "review": {
+      "reviewed": true,
+      "reviewedAt": null
+    },
+    "updated_at": "2026-05-25T10:14:27.957419+00:00",
+    "updatedAt": "2026-05-25T10:14:27.957419+00:00"
+  },
+  {
+    "id": "6",
+    "emailId": "msg-006",
+    "company": "LinkedIn Recruiter",
+    "role": "Senior Developer",
+    "status": "archived",
+    "subject": "Opportunity at a fast-growing startup",
+    "snippet": "I came across your profile \u2014 would you be interested in a quick chat?",
+    "confidence": "high",
+    "receivedAt": "2026-05-24T11:00:00.000Z",
+    "classifiedAt": "2026-05-24T11:01:00.000Z",
+    "review": {
+      "reviewed": true,
+      "reviewedAt": null
+    },
+    "updated_at": "2026-05-25T10:14:23.470242+00:00",
+    "updatedAt": "2026-05-25T10:14:23.470242+00:00"
+  }
+]

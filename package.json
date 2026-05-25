@@ -1,0 +1,21 @@
+{
+  "name": "automation-job-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Game of Throne — automated job pipeline dashboard",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "uvicorn backend.main:app --reload --host 127.0.0.1 --port 3001",
+    "dev:web": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "preview": "npm run preview --prefix frontend",
+    "start": "uvicorn backend.main:app --host 0.0.0.0 --port 3001",
+    "test:classifier": "python -m pytest backend/tests -q"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

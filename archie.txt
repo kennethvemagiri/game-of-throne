@@ -1,0 +1,26 @@
+Automation-Job Tracker/
+├── .env                    # secrets (never commit)
+├── package.json
+├── server/
+│   ├── index.js            # Express server (entry point)
+│   ├── auth/
+│   │   └── gmail.js        # OAuth 2.0 setup + token management
+│   ├── services/
+│   │   ├── emailWatcher.js  # Polls Gmail for new job emails
+│   │   ├── classifier.js    # Keyword matching engine
+│   │   └── notifier.js      # Browser/email notification on interview
+│   ├── db/
+│   │   └── store.js         # JSON file read/write (our "database")
+│   └── data/
+│       └── applications.json # The actual data store
+├── client/
+│   ├── index.html
+│   ├── App.jsx              # Main dashboard (what we already built)
+│   ├── components/
+│   │   ├── StatCards.jsx
+│   │   ├── Timeline.jsx
+│   │   ├── ProgressBar.jsx
+│   │   └── FilterBar.jsx
+│   └── hooks/
+│       └── useApplications.js  # Fetches data from server
+└── README.md

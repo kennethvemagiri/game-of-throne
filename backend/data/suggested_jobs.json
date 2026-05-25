@@ -1,0 +1,35 @@
+[
+  {
+    "id": "sj-001",
+    "source": "indeed",
+    "company": "Globex",
+    "role": "Senior Developer",
+    "url": "https://www.indeed.com/viewjob?jk=example-globex",
+    "snippet": "Remote-friendly role matching your stack. React, TypeScript, and API experience preferred.",
+    "suggestedAt": "2026-05-24T09:00:00.000Z",
+    "status": "rejected",
+    "updatedAt": "2026-05-25T10:07:26.056915+00:00"
+  },
+  {
+    "id": "sj-002",
+    "source": "indeed",
+    "company": "Initech",
+    "role": "QA Automation Engineer",
+    "url": "https://www.indeed.com/viewjob?jk=example-initech",
+    "snippet": "Build test automation pipelines for a growing fintech team. Python and CI/CD experience a plus.",
+    "suggestedAt": "2026-05-23T14:30:00.000Z",
+    "status": "rejected",
+    "updatedAt": "2026-05-25T10:07:26.751513+00:00"
+  },
+  {
+    "id": "sj-003",
+    "source": "indeed",
+    "company": "Umbrella Labs",
+    "role": "Backend Engineer",
+    "url": "https://www.indeed.com/viewjob?jk=example-umbrella",
+    "snippet": "FastAPI and PostgreSQL. Work on internal tooling and data pipelines.",
+    "suggestedAt": "2026-05-22T11:00:00.000Z",
+    "status": "rejected",
+    "updatedAt": "2026-05-25T10:07:27.314899+00:00"
+  }
+]

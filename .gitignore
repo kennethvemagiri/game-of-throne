@@ -1,0 +1,25 @@
+node_modules/
+.env
+frontend/dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Secrets & tokens
+backend/data/token.json
+backend/data/last_fetch.json
+server/data/tokens.json
+credentials.json
+
+# IDE / tooling
+.vscode/
+.idea/
+.claude/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
