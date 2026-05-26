@@ -45,7 +45,7 @@ async def run_fetch_and_classify() -> dict:
                 "confidence": result["confidence"],
                 "subject": email["subject"],
                 "snippet": email["body"][:200],
-                "receivedAt": email.get("date") or now,
+                "receivedAt": email.get("received_at") or email.get("date") or now,
                 "classifiedAt": now,
                 "review": {
                     "reviewed": result["status"] != "needs_review",

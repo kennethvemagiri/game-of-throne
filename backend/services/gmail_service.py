@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from io import StringIO
 from pathlib import Path
@@ -237,6 +238,31 @@ def _extract_body(payload: dict) -> str:
     return plain or html
 
 
+def _normalize_received_at(msg: dict, date_header: str) -> str:
+    """Return an ISO8601 UTC timestamp for reliable downstream sorting/filtering."""
+    internal_date = msg.get("internalDate")
+    if internal_date:
+        try:
+            # Gmail internalDate is epoch milliseconds as a string.
+            dt = datetime.fromtimestamp(int(internal_date) / 1000, tz=timezone.utc)
+            return dt.isoformat()
+        except Exception:
+            logger.warning("[gmail] Failed to parse internalDate, falling back to Date header")
+
+    if date_header:
+        try:
+            dt = parsedate_to_datetime(date_header)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt = dt.astimezone(timezone.utc)
+            return dt.isoformat()
+        except Exception:
+            logger.warning("[gmail] Failed to parse Date header, falling back to now")
+
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _list_messages_with_retry(service, query: str) -> list[str]:
     """List message IDs with pagination and retry on transient errors."""
     message_ids: list[str] = []
@@ -322,6 +348,7 @@ def fetch_new_emails() -> list[dict]:
             subject = _extract_header(headers, "Subject")
             sender = _extract_header(headers, "From")
             date = _extract_header(headers, "Date")
+            received_at = _normalize_received_at(msg, date)
             body = _extract_body(msg.get("payload", {}))
 
             emails.append({
@@ -330,6 +357,7 @@ def fetch_new_emails() -> list[dict]:
                 "sender": sender,
                 "body": body[:2000],
                 "date": date,
+                "received_at": received_at,
             })
         except Exception:
             logger.exception(f"[gmail] Failed to fetch message {msg_id}, skipping")
