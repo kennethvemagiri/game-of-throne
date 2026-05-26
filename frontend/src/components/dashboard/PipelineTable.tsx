@@ -44,7 +44,17 @@ export function PipelineTable({ applications, statusFilter, dateFrom, dateTo, on
   };
 
   if (!list.length) {
-    return <p className="empty-state">No applications in pipeline.</p>;
+    return (
+      <div className="empty-state">
+        <svg className="empty-state__icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="6" y="8" width="28" height="24" rx="3" />
+          <line x1="6" y1="15" x2="34" y2="15" />
+          <line x1="14" y1="8" x2="14" y2="15" />
+          <line x1="26" y1="8" x2="26" y2="15" />
+        </svg>
+        <p>No applications in pipeline.</p>
+      </div>
+    );
   }
 
   return (
@@ -105,7 +115,7 @@ export function PipelineTable({ applications, statusFilter, dateFrom, dateTo, on
         </table>
       </div>
       <p className="pipeline-table__footer">
-        Showing 1 to {list.length} of {list.length} applications
+        Showing {list.length} {list.length === 1 ? 'application' : 'applications'}
       </p>
     </>
   );

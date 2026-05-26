@@ -118,7 +118,6 @@ function buildCumulativeData(apps: Application[]): DayBucket[] {
   });
 }
 
-// SVG area chart rendering helpers
 const CHART_W = 780;
 const CHART_H = 110;
 const PAD_L = 32;
@@ -186,7 +185,7 @@ function AreaChart({ title, legend, color, gradientId, values, labels }: AreaCha
     .filter((_, i) => i % labelStep === 0 || i === n - 1);
 
   return (
-    <div className="insight-chart panel">
+    <div className="insight-chart panel fade-in">
       <svg
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
         preserveAspectRatio="xMidYMid meet"
@@ -265,7 +264,15 @@ export function InsightsCharts({ applications }: InsightsChartsProps) {
   const cumulative = useMemo(() => buildCumulativeData(applications), [applications]);
 
   if (!applications.length) {
-    return <p className="empty-state">No data to display yet.</p>;
+    return (
+      <div className="empty-state">
+        <svg className="empty-state__icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6,30 14,18 22,24 34,10" />
+          <polyline points="28,10 34,10 34,16" />
+        </svg>
+        <p>No data to display yet.</p>
+      </div>
+    );
   }
 
   return (

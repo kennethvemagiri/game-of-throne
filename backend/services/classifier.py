@@ -1,41 +1,77 @@
+import os
 import re
 from typing import Literal, Optional
 
 KEYWORD_BANKS = {
     "interview": [
         "interview",
-        "invite you",
-        "schedule a call",
+        "interview invite",
+        "invite you to interview",
+        "final interview",
+        "phone screen",
+        "screening call",
+        "hiring manager interview",
         "meet the team",
         "next stage",
+        "next round",
         "shortlisted",
+        "availability for interview",
+        "book a time",
+        "schedule a time",
+        "calendly",
     ],
     "rejected": [
-        "unfortunately",
         "regret to inform",
+        "unfortunately",
+        "not moving forward",
         "not progressing",
-        "other candidates",
+        "not selected",
         "not successful",
-        "wish you well",
+        "decided to move forward with other candidates",
+        "position has been filled",
+        "we will not be proceeding",
+        "thank you for your interest",
+        "wish you the best",
     ],
     "acknowledged": [
+        "application received",
         "received your application",
         "thank you for applying",
+        "we have received",
         "application has been submitted",
-        "confirmation",
+        "application confirmation",
+        "we'll review your application",
+        "our team will review",
+        "application under review",
     ],
     "assessment": [
-        "coding challenge",
-        "technical test",
         "assessment",
-        "complete this task",
+        "online assessment",
+        "technical assessment",
+        "coding challenge",
+        "code challenge",
         "take-home",
+        "take home",
+        "hackerrank",
+        "codility",
+        "testgorilla",
+        "criteria test",
+        "complete this task",
+        "submit your solution",
+        "deadline to complete",
     ],
     "recruiter_inbound": [
         "came across your profile",
         "reaching out",
-        "opportunity",
         "would you be interested",
+        "interesting opportunity",
+        "open role",
+        "hiring for",
+        "looking for a",
+        "your background fits",
+        "connect regarding",
+        "quick chat",
+        "intro call",
     ],
 }
 
@@ -59,36 +95,61 @@ JOB_SENDER_HINTS = [
 ]
 
 JOB_CONTENT_HINTS = [
-    "application", "applied", "position", "role", "candidate",
-    "interview", "hiring", "recruiter", "opportunity",
+    "application", "applied", "position", "role", "candidate", "job opening",
+    "interview", "hiring", "recruiter", "talent acquisition", "assessment",
 ]
 
 SKIP_HINTS = [
-    "unsubscribe", "newsletter", "% off", "promo code", "webinar", "black friday",
+    "unsubscribe", "newsletter", "% off", "promo code", "webinar",
+    "black friday", "cyber monday", "order shipped", "invoice", "receipt",
+    "security alert", "password reset", "verify your email", "marketing preferences",
 ]
+
+STRONG_PHRASES = {
+    "rejected": [
+        "regret to inform",
+        "move forward with other candidates",
+        "not moving forward",
+    ],
+    "interview": [
+        "invite you to interview",
+        "schedule an interview",
+    ],
+    "assessment": [
+        "complete this coding challenge",
+        "online assessment",
+    ],
+}
+
+DEFAULT_SUBJECT_HIT_WEIGHT = 2
+DEFAULT_BODY_HIT_WEIGHT = 1
+DEFAULT_STRONG_PHRASE_WEIGHT = 2
+
+DEFAULT_AUTO_ASSIGN_MIN_SCORE = 3
+DEFAULT_AUTO_ASSIGN_MIN_MARGIN = 1
 
 Confidence = Literal["high", "medium", "low"]
 
 
 def classify_email(subject: str = "", body: str = "", sender: str = "") -> dict:
-    combined = f"{subject}\n{body}".strip()
-    combined_lower = combined.lower()
+    subject_lower = subject.lower()
+    body_lower = body.lower()
+    combined_lower = f"{subject}\n{body}".strip().lower()
     sender_lower = sender.lower()
+    company = _extract_company(sender, subject)
+    role = _extract_role(subject, body)
 
     if _should_skip(combined_lower, sender_lower):
         return {
             "status": "skip",
-            "company": _extract_company(sender, subject),
-            "role": _extract_role(subject, body),
+            "company": company,
+            "role": role,
             "confidence": "high",
         }
 
-    scores = _score_statuses(combined_lower)
-    best = _pick_best_status(scores)
-    company = _extract_company(sender, subject)
-    role = _extract_role(subject, body)
+    ranked = _rank_statuses(_score_statuses(subject_lower, body_lower))
 
-    if not best or best["match_count"] == 0:
+    if not ranked:
         if _is_job_related(sender_lower, combined_lower):
             return {
                 "status": "needs_review",
@@ -103,24 +164,25 @@ def classify_email(subject: str = "", body: str = "", sender: str = "") -> dict:
             "confidence": "high",
         }
 
-    confidence = _match_count_to_confidence(best["match_count"])
+    top = ranked[0]
+    confidence = _score_to_confidence(top["score"])
 
-    if confidence in ("low", "medium"):
+    if _should_auto_assign(ranked):
         return {
-            "status": "needs_review",
+            "status": top["status"],
             "company": company,
             "role": role,
             "confidence": confidence,
-            "suggested_status": best["status"],
-            "matched_keywords": best["matched_keywords"],
+            "matched_keywords": top["matched_keywords"],
         }
 
     return {
-        "status": best["status"],
+        "status": "needs_review",
         "company": company,
         "role": role,
         "confidence": confidence,
-        "matched_keywords": best["matched_keywords"],
+        "suggested_status": top["status"],
+        "matched_keywords": top["matched_keywords"],
     }
 
 
@@ -133,38 +195,88 @@ def _should_skip(text_lower: str, sender_lower: str) -> bool:
     return not has_job
 
 
-def _score_statuses(text_lower: str) -> list[dict]:
+def _score_statuses(subject_lower: str, body_lower: str) -> list[dict]:
+    subject_hit_weight = _env_int("CLASSIFIER_SUBJECT_HIT_WEIGHT", DEFAULT_SUBJECT_HIT_WEIGHT, min_value=0)
+    body_hit_weight = _env_int("CLASSIFIER_BODY_HIT_WEIGHT", DEFAULT_BODY_HIT_WEIGHT, min_value=0)
+    strong_phrase_weight = _env_int("CLASSIFIER_STRONG_PHRASE_WEIGHT", DEFAULT_STRONG_PHRASE_WEIGHT, min_value=0)
+    combined_lower = f"{subject_lower}\n{body_lower}"
     results = []
     for status, keywords in KEYWORD_BANKS.items():
-        matched = [kw for kw in keywords if kw.lower() in text_lower]
+        matched_keywords = []
+        score = 0
+
+        for keyword in keywords:
+            keyword_lower = keyword.lower()
+            if keyword_lower in subject_lower:
+                score += subject_hit_weight
+                matched_keywords.append(keyword)
+                continue
+            if keyword_lower in body_lower:
+                score += body_hit_weight
+                matched_keywords.append(keyword)
+
+        strong_matched = []
+        for phrase in STRONG_PHRASES.get(status, []):
+            phrase_lower = phrase.lower()
+            if phrase_lower in combined_lower:
+                score += strong_phrase_weight
+                strong_matched.append(f"strong:{phrase}")
+
         results.append({
             "status": status,
-            "match_count": len(matched),
-            "matched_keywords": matched,
+            "score": score,
+            "match_count": len(matched_keywords),
+            "matched_keywords": matched_keywords + strong_matched,
         })
     return results
 
 
-def _pick_best_status(scores: list[dict]) -> Optional[dict]:
-    with_matches = [s for s in scores if s["match_count"] > 0]
-    if not with_matches:
-        return None
+def _rank_statuses(scores: list[dict]) -> list[dict]:
+    with_score = [s for s in scores if s["score"] > 0]
 
     def sort_key(entry: dict):
         return (
+            -entry["score"],
             -entry["match_count"],
             STATUS_PRIORITY.index(entry["status"]),
         )
 
-    return sorted(with_matches, key=sort_key)[0]
+    return sorted(with_score, key=sort_key)
 
 
-def _match_count_to_confidence(match_count: int) -> Confidence:
-    if match_count >= 3:
+def _should_auto_assign(ranked: list[dict]) -> bool:
+    min_score = _env_int("CLASSIFIER_AUTO_ASSIGN_MIN_SCORE", DEFAULT_AUTO_ASSIGN_MIN_SCORE, min_value=0)
+    min_margin = _env_int("CLASSIFIER_AUTO_ASSIGN_MIN_MARGIN", DEFAULT_AUTO_ASSIGN_MIN_MARGIN, min_value=0)
+    top = ranked[0]
+    second_score = ranked[1]["score"] if len(ranked) > 1 else 0
+    margin = top["score"] - second_score
+    return top["score"] >= min_score and margin >= min_margin
+
+
+def _score_to_confidence(score: int) -> Confidence:
+    high_threshold = _env_int("CLASSIFIER_CONFIDENCE_HIGH_SCORE", 5, min_value=1)
+    medium_threshold = _env_int("CLASSIFIER_CONFIDENCE_MEDIUM_SCORE", 2, min_value=0)
+    if high_threshold < medium_threshold:
+        high_threshold = medium_threshold
+
+    if score >= high_threshold:
         return "high"
-    if match_count >= 1:
+    if score >= medium_threshold:
         return "medium"
     return "low"
+
+
+def _env_int(name: str, default: int, *, min_value: int | None = None) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    if min_value is not None and value < min_value:
+        return min_value
+    return value
 
 
 def _is_job_related(sender_lower: str, text_lower: str) -> bool:

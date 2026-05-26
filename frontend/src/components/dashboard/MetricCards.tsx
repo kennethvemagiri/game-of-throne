@@ -18,14 +18,15 @@ interface MetricCardsProps {
 export function MetricCards({ counts, activeFilter, onFilter }: MetricCardsProps) {
   return (
     <div className="metric-cards">
-      {METRIC_KEYS.map((key) => {
+      {METRIC_KEYS.map((key, i) => {
         const isActive = activeFilter === key;
         const icon = CARD_ICONS[key];
         return (
           <button
             key={key}
             type="button"
-            className={`metric-card metric-card--${key}${isActive ? ' is-active' : ''}${icon ? ' has-icon' : ''}`}
+            className={`metric-card metric-card--${key}${isActive ? ' is-active' : ''}${icon ? ' has-icon' : ''} fade-in-stagger`}
+            style={{ animationDelay: `${i * 0.06}s` }}
             onClick={() => onFilter(isActive ? null : key)}
             aria-pressed={isActive}
           >

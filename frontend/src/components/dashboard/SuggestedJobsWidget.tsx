@@ -28,7 +28,13 @@ export function SuggestedJobsWidget({
         )}
       </div>
       {!list.length ? (
-        <p className="empty-state empty-state--compact">No new suggestions right now.</p>
+        <div className="empty-state empty-state--compact">
+          <svg className="empty-state__icon" width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 0 0.5rem' }}>
+            <rect x="5" y="10" width="26" height="18" rx="3" />
+            <path d="M12 10V7a6 6 0 0 1 12 0v3" />
+          </svg>
+          <p style={{ margin: 0 }}>No new suggestions right now.</p>
+        </div>
       ) : (
         <ul className="suggested-list">
           {list.map((job) => (
