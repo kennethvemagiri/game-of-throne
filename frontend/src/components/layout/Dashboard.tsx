@@ -10,7 +10,7 @@ import { MetricCards } from '../dashboard/MetricCards';
 import { PipelineTable } from '../dashboard/PipelineTable';
 import { ReviewWidget } from '../dashboard/ReviewWidget';
 import { SuggestedJobsWidget } from '../dashboard/SuggestedJobsWidget';
-import { MetricCardsSkeleton, PipelineTableSkeleton } from '../ui/Skeleton';
+import { MetricCardsSkeleton, PipelineTableSkeleton, Skeleton } from '../ui/Skeleton';
 
 type Section = 'overview' | 'applications' | 'suggested' | 'insights';
 
@@ -191,6 +191,19 @@ export function Dashboard() {
 
           <div className="overview-grid">
             <section className="section overview-grid__main">
+              {loading ? (
+                <div className="widget panel review-widget">
+                  <Skeleton variant="text" width="8rem" height="1.25rem" />
+                  <div className="skeleton-group" style={{ marginTop: '1rem' }}>
+                    <Skeleton variant="row" count={3} />
+                  </div>
+                </div>
+              ) : (
+                <ReviewWidget applications={applications} onAssign={assignStatus} />
+              )}
+            </section>
+
+            <aside className="section overview-grid__aside">
               <div className="section-header">
                 <h2 className="section-title">Pipeline</h2>
                 <div className="filter-group">
@@ -238,7 +251,7 @@ export function Dashboard() {
               {loading ? (
                 <PipelineTableSkeleton />
               ) : (
-                <div className="panel">
+                <div className="panel pipeline-aside-panel">
                   <PipelineTable
                     applications={applications}
                     statusFilter={pipelineFilter}
@@ -248,10 +261,6 @@ export function Dashboard() {
                   />
                 </div>
               )}
-            </section>
-
-            <aside className="overview-grid__aside">
-              <ReviewWidget applications={applications} onAssign={assignStatus} />
             </aside>
           </div>
         </section>

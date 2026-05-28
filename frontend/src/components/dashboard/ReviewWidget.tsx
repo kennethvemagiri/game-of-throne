@@ -16,12 +16,12 @@ export function ReviewWidget({ applications, onAssign }: ReviewWidgetProps) {
     return (
       <div className="widget panel review-widget">
         <h3>Needs review</h3>
-        <div className="empty-state empty-state--compact">
-          <svg className="empty-state__icon" width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 0 0.5rem' }}>
-            <circle cx="18" cy="18" r="14" />
-            <polyline points="13,18 17,22 24,14" />
+        <div className="empty-state">
+          <svg className="empty-state__icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="20" cy="20" r="15" />
+            <polyline points="14,20 18,24 26,16" />
           </svg>
-          <p style={{ margin: 0 }}>All caught up. No applications need review.</p>
+          <p>All caught up. No applications need review.</p>
         </div>
       </div>
     );
