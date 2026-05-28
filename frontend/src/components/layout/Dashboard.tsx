@@ -258,6 +258,7 @@ export function Dashboard() {
                     dateFrom={dateFrom}
                     dateTo={dateTo}
                     onArchive={archiveApp}
+                    variant="cards"
                   />
                 </div>
               )}
